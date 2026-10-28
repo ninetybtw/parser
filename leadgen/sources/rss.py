@@ -20,6 +20,20 @@ from ..ratelimit import RateLimiter
 from .base import Source
 
 TAG_RE = re.compile(r"<[^>]+>")
+WORD_RE = re.compile(r"[\wё]+", re.I)
+STOPWORDS = {"для", "как", "что", "или", "под", "без", "это", "все"}
+
+
+def query_stems(query: str) -> list[str]:
+    """Грубые основы слов запроса: «ремонт техники» → ["ремон", "техни"]."""
+    words = [w.lower() for w in WORD_RE.findall(query) if len(w) >= 3 and w.lower() not in STOPWORDS]
+    return [w[:5] if len(w) > 5 else w for w in words]
+
+
+def matches(query: str, text: str) -> bool:
+    stems = query_stems(query)
+    low = text.lower()
+    return not stems or any(stem in low for stem in stems)
 
 
 def strip_html(text: str) -> str:
@@ -58,6 +72,9 @@ class RSSSource(Source):
     def search(self, query: str, limit: int) -> Iterator[RawLead]:
         url = self.url_template.format(query=quote_plus(query))
         items = parse_feed(polite_get(self.client, url, self.limiter).text)
+        if "{query}" not in self.url_template:
+            # Лента без поиска (например, все заказы FL.ru) — фильтруем по нише сами.
+            items = [i for i in items if matches(query, f"{i['title']}\n{i['description']}")]
         for item in items[:limit]:
             yield RawLead(
                 source=self.name,

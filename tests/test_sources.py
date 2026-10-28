@@ -90,3 +90,13 @@ def test_vk_retries_rate_limit_then_fails_on_bad_token():
 def test_vk_requires_token():
     with pytest.raises(SourceError):
         VKSource("")
+
+
+def test_feed_without_query_is_filtered_by_niche():
+    client = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, text=(FIXTURES / "habr.rss").read_text(encoding="utf-8"))))
+    src = RSSSource("all", "https://feed.example/all.xml", limiter=no_wait(), client=client)
+    assert [l.external_id for l in src.search("ремонт техники", 10)] == ["https://freelance.example/tasks/101"]
+    assert [l.name for l in src.search("бот", 10)] == ["Telegram-бот для записи в салон"]
+    assert len(list(src.search("сайт для салона", 10))) == 2  # «сайт» в первом, «салон» во втором
+    assert list(src.search("доставка цветов", 10)) == []
