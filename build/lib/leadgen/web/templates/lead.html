@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.name }}{% endblock %}
+{% block content %}
+<p><a href="/">← ко всем лидам</a></p>
+<div class="layout">
+  <section class="panel">
+    <h1>{{ lead.name }}</h1>
+    <p>
+      <span class="status {{ lead.status }}">{{ STATUS_LABELS[lead.status] }}</span>
+      <span class="pill">{{ profile.title }}</span>
+      <span class="pill">{{ 'заказ на бирже' if lead.kind == 'request' else 'бизнес' }}</span>
+      {% if lead.city %}<span class="pill">{{ lead.city }}</span>{% endif %}
+    </p>
+    {% if lead.url | safe_url %}<p><a href="{{ lead.url | safe_url }}" target="_blank" rel="noopener noreferrer">Источник ↗</a></p>{% endif %}
+
+    <h3>Описание</h3>
+    <div class="description">{{ lead.description or '—' }}</div>
+
+    <h3>Контакты (публичные)</h3>
+    <ul class="contacts">
+      {% for p in lead.contacts.phones %}<li>☎ +{{ p }}</li>{% endfor %}
+      {% for e in lead.contacts.emails %}<li>✉ {{ e }}</li>{% endfor %}
+      {% for t in lead.contacts.telegram %}<li>tg <a href="https://t.me/{{ t }}" target="_blank" rel="noopener noreferrer">@{{ t }}</a></li>{% endfor %}
+      {% for v in lead.contacts.vk %}<li>vk <a href="https://vk.com/{{ v }}" target="_blank" rel="noopener noreferrer">{{ v }}</a></li>{% endfor %}
+      {% for w in lead.contacts.websites %}<li>🌐 {% if w | safe_url %}<a href="{{ w | safe_url }}" target="_blank" rel="noopener noreferrer">{{ w }}</a>{% else %}{{ w }}{% endif %}</li>{% endfor %}
+      {% if lead.contacts.is_empty() %}<li class="muted">не указаны</li>{% endif %}
+    </ul>
+
+    {% if lead.prices %}
+    <h3>Прайс</h3>
+    <ul class="small">{% for p in lead.prices %}<li>{{ p.title }} — {{ p.price }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    <h3>Где найден</h3>
+    <ul class="small">
+      {% for s in lead.sources %}<li>{{ s.source }} · «{{ s.query }}» · {{ s.first_seen[:10] }}{% if s.last_seen[:10] != s.first_seen[:10] %} (снова {{ s.last_seen[:10] }}){% endif %}</li>{% endfor %}
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2>Предложение</h2>
+    <p class="muted small">Черновик: {{ lead.offer_source or '—' }}{% if lead.offer_service %} · услуга: {{ lead.offer_service }}{% endif %}. Прочитайте и поправьте перед отправкой.</p>
+    <form method="post" action="/leads/{{ lead.id }}/offer">
+      <input name="subject" value="{{ lead.offer_subject }}" placeholder="тема / первая строка">
+      <textarea id="offer-text" name="text" rows="14">{{ lead.offer_text }}</textarea>
+      <div class="row">
+        <button>Сохранить правки</button>
+        <button formaction="/leads/{{ lead.id }}/regenerate" class="secondary">Сгенерировать заново</button>
+      </div>
+    </form>
+
+    {% if mockup_url %}
+    <h3>Макет-превью</h3>
+    <iframe src="{{ mockup_url }}" class="mockup" title="макет"></iframe>
+    <p class="small">
+      <a href="{{ mockup_url }}" target="_blank">открыть макет ↗</a>
+      {% if preview_url %} · <a href="{{ preview_url }}" download="maket-{{ lead.id }}.png">скачать PNG для вложения</a>{% endif %}
+    </p>
+    {% endif %}
+
+    <h3>Отправка</h3>
+    {% if lead.kind == 'request' %}
+    <p class="small muted">Это заказ на бирже — откликайтесь на странице заказа, через форму биржи.</p>
+    {% elif lead.source == 'telegram' %}
+    <p class="small muted">В канал написать нельзя: возьмите контакт для связи из описания (он выше в «Контактах»).</p>
+    {% endif %}
+    <div class="row">
+      <button type="button" class="primary" data-copy="#offer-text" data-open="{{ (lead.contact_url or lead.url) | safe_url }}">Скопировать текст и открыть диалог</button>
+    </div>
+    <form method="post" action="/leads/{{ lead.id }}/status" class="row">
+      <button name="status" value="sent" class="ok">Отправлено — отметить</button>
+      <button name="status" value="replied" class="secondary">Ответили</button>
+      <button name="status" value="skipped" class="secondary">Пропустить</button>
+      <button name="status" value="do_not_contact" class="danger" data-confirm="Больше никогда не показывать этот бизнес?">Не писать</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

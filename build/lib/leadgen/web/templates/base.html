@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Лиды{% endblock %} · leadgen</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <a href="/" class="logo">leadgen</a>
+  <span class="muted">подготовка предложений · отправка вручную</span>
+  <span class="spacer"></span>
+  <span class="pill {% if sent_today >= limit %}warn{% endif %}">отправлено сегодня: {{ sent_today }} / {{ limit }}</span>
+</header>
+<main>
+{% if sent_today >= limit %}
+<div class="banner">Дневной лимит отправок достигнут. Продолжайте завтра — резкий рост числа первых сообщений с одного аккаунта площадки воспринимают как спам.</div>
+{% endif %}
+{% block content %}{% endblock %}
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
