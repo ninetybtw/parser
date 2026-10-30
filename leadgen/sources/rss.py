@@ -36,13 +36,27 @@ def matches(query: str, text: str) -> bool:
     return not stems or any(stem in low for stem in stems)
 
 
+def fix_mojibake(text: str) -> str:
+    """Чинит UTF-8, прочитанный как windows-1251 («Р—Р°РєР°Р·С‹» → «Заказы»).
+
+    Нормальный русский текст после такого преобразования не декодируется как UTF-8,
+    поэтому он остаётся как есть.
+    """
+    try:
+        return text.encode("cp1251").decode("utf-8")
+    except UnicodeError:
+        return text
+
+
 def strip_html(text: str) -> str:
-    text = re.sub(r"<br\s*/?>|</p>", "\n", text or "", flags=re.I)
+    text = re.sub(r"<br\s*/?>|</p>", "\n", fix_mojibake(text or ""), flags=re.I)
     return re.sub(r"\n{3,}", "\n\n", html.unescape(TAG_RE.sub("", text))).strip()
 
 
-def parse_feed(xml_text: str) -> list[dict]:
-    root = ET.fromstring(xml_text)
+def parse_feed(xml: bytes | str) -> list[dict]:
+    # Байты разбираются по кодировке из <?xml ... encoding?>, а не из HTTP-заголовка:
+    # FL.ru отдаёт UTF-8, но объявляет в заголовке windows-1251.
+    root = ET.fromstring(xml)
     items = []
     for item in root.iter("item"):
         def field(tag: str) -> str:
@@ -56,7 +70,7 @@ def parse_feed(xml_text: str) -> list[dict]:
                 "guid": field("guid") or field("link"),
                 "description": strip_html(field("description")),
                 "published": field("pubDate"),
-                "category": field("category"),
+                "category": strip_html(field("category")),
             }
         )
     return items
@@ -71,7 +85,7 @@ class RSSSource(Source):
 
     def search(self, query: str, limit: int) -> Iterator[RawLead]:
         url = self.url_template.format(query=quote_plus(query))
-        items = parse_feed(polite_get(self.client, url, self.limiter).text)
+        items = parse_feed(polite_get(self.client, url, self.limiter).content)
         if "{query}" not in self.url_template:
             # Лента без поиска (например, все заказы FL.ru) — фильтруем по нише сами.
             items = [i for i in items if matches(query, f"{i['title']}\n{i['description']}")]

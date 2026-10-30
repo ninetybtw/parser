@@ -100,3 +100,19 @@ def test_feed_without_query_is_filtered_by_niche():
     assert [l.name for l in src.search("бот", 10)] == ["Telegram-бот для записи в салон"]
     assert len(list(src.search("сайт для салона", 10))) == 2  # «сайт» в первом, «салон» во втором
     assert list(src.search("доставка цветов", 10)) == []
+
+
+def test_feed_with_wrong_charset_header_is_decoded_by_xml_declaration():
+    body = (FIXTURES / "habr.rss").read_bytes()  # UTF-8 с encoding="UTF-8" в декларации
+    client = httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, content=body, headers={"content-type": "text/xml; charset=windows-1251"})))
+    src = RSSSource("fl", "https://feed.example/all.xml", limiter=no_wait(), client=client)
+    assert [l.name for l in src.search("салон", 10)] == ["Telegram-бот для записи в салон"]
+
+
+def test_double_encoded_text_is_repaired():
+    from leadgen.sources.rss import fix_mojibake
+
+    assert fix_mojibake("Р—Р°РєР°Р·С‹ РЅР° FL.ru") == "Заказы на FL.ru"
+    assert fix_mojibake("Заказы на FL.ru") == "Заказы на FL.ru"
+    assert fix_mojibake("Ремонт техники, Россия") == "Ремонт техники, Россия"
